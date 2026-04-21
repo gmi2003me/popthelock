@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Pop the Lock</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #0a0618;
+      font-family: Arial, Helvetica, sans-serif;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    #root {
+      width: 100%; height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ─── Screens ───────────────────────────────────── */
+    .screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0a0618;
+      z-index: 30;
+      gap: 0.75rem;
+    }
+    .screen.hidden { display: none; }
+
+    .screen-title {
+      font-size: clamp(1.8rem, 9vw, 3.5rem);
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: #ff2d78;
+      text-shadow: 0 0 18px #ff2d78aa, 0 0 50px #ff2d7855;
+    }
+
+    .screen-sub {
+      font-size: clamp(0.65rem, 2.5vw, 0.9rem);
+      letter-spacing: 3px;
+      color: #999;
+      margin-bottom: 0.5rem;
+    }
+
+    .diff-row {
+      display: flex;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .diff-btn {
+      padding: 0.7rem 1.6rem;
+      border-radius: 999px;
+      border: 2px solid;
+      background: transparent;
+      font-size: clamp(0.7rem, 2.5vw, 0.95rem);
+      font-weight: 700;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .diff-btn:active { transform: scale(0.93); }
+    .diff-btn.easy   { color: #00e87a; border-color: #00e87a; }
+    .diff-btn.easy:hover   { background: #00e87a1a; }
+    .diff-btn.medium { color: #ffe040; border-color: #ffe040; }
+    .diff-btn.medium:hover { background: #ffe0401a; }
+    .diff-btn.hard   { color: #ff4444; border-color: #ff4444; }
+    .diff-btn.hard:hover   { background: #ff44441a; }
+
+    .go-label {
+      font-size: clamp(0.65rem, 2.5vw, 0.9rem);
+      letter-spacing: 3px;
+      color: #888;
+    }
+    .go-score {
+      font-size: clamp(4rem, 20vw, 7rem);
+      font-weight: 900;
+      color: #fff;
+      line-height: 1;
+    }
+    .play-again-btn {
+      margin-top: 0.4rem;
+      padding: 0.85rem 2.6rem;
+      border-radius: 999px;
+      border: none;
+      background: #ff2d78;
+      color: #fff;
+      font-size: clamp(0.8rem, 3vw, 1.05rem);
+      font-weight: 700;
+      letter-spacing: 2px;
+      cursor: pointer;
+      box-shadow: 0 0 22px #ff2d7866;
+      transition: transform 0.1s, background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .play-again-btn:hover  { background: #ff508a; }
+    .play-again-btn:active { transform: scale(0.94); }
+
+    /* ─── Game area ─────────────────────────────────── */
+    #game-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #canvas {
+      display: block;
+      touch-action: none;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Tap button – shown only on coarse-pointer (touch) devices */
+    #tap-btn {
+      display: none;
+      margin-top: 1rem;
+      width: min(78vw, 280px);
+      padding: 1rem 0;
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(180deg, #ff2244 0%, #cc0033 100%);
+      color: #fff;
+      font-size: 1.3rem;
+      font-weight: 900;
+      letter-spacing: 3px;
+      cursor: pointer;
+      box-shadow: 0 6px 28px #ff224466, 0 2px 0 #880022;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.08s;
+    }
+    #tap-btn:active { transform: scale(0.93) translateY(2px); }
+
+    @media (pointer: coarse) { #tap-btn { display: block; } }
+  </style>
+</head>
+<body>
+<div id="root">
+
+  <!-- ─── Start Screen ─── -->
+  <div id="start-screen" class="screen">
+    <div class="screen-title">POP THE LOCK</div>
+    <div class="screen-sub">CHOOSE DIFFICULTY</div>
+    <div class="diff-row">
+      <button class="diff-btn easy"   onclick="startGame('easy')">EASY</button>
+      <button class="diff-btn medium" onclick="startGame('medium')">MEDIUM</button>
+      <button class="diff-btn hard"   onclick="startGame('hard')">HARD</button>
+    </div>
+  </div>
+
+  <!-- ─── Game Over Screen ─── -->
+  <div id="gameover-screen" class="screen hidden">
+    <div class="screen-title">GAME OVER</div>
+    <div class="go-label">YOUR SCORE</div>
+    <div class="go-score" id="final-score">0</div>
+    <button class="play-again-btn" onclick="showStart()">PLAY AGAIN</button>
+  </div>
+
+  <!-- ─── Canvas + mobile button ─── -->
+  <div id="game-wrap">
+    <canvas id="canvas"></canvas>
+    <button id="tap-btn">TAP!</button>
+  </div>
+
+</div>
+<script>
+/* ════════════════════════════════════════════════════
+   POP THE LOCK  ·  pure HTML / CSS / JS
+   ════════════════════════════════════════════════════ */
+'use strict';
+
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+
+/* ── Responsive sizing ─────────────────────────────── */
+let SIZE = 360;
+
+function applySize() {
+  const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+  const tapBtnRoom    = isTouchDevice ? 112 : 16;
+  SIZE = Math.min(
+    window.innerWidth  * 0.96,
+    (window.innerHeight - tapBtnRoom) * 0.93,
+    500
+  ) | 0;
+  canvas.width  = SIZE;
+  canvas.height = SIZE;
+}
+applySize();
+window.addEventListener('resize', applySize);
+
+/* ── Game constants ────────────────────────────────── */
+const BASE_DPS    = 90;   // degrees per second at start
+const INC_DPS     = 5;    // speed gain per successful hit
+
+// Target circle radius as a fraction of SIZE
+const TARGET_FRAC = { easy: 0.090, medium: 0.060, hard: 0.038 };
+
+/* ── Game state ────────────────────────────────────── */
+// gs: 'start' | 'ready' | 'playing' | 'gameover'
+// 'ready'   → arm is stationary, waiting for first tap to begin
+// 'playing' → arm moves, hit/miss detection active
+let gs        = 'start';
+let diff      = 'medium';
+let score     = 0;
+let armAngle  = 0;    // degrees – 0 = top (12-o'clock), increases clockwise
+let armDir    = 1;    // +1 CW  /  -1 CCW
+let armDPS    = BASE_DPS;
+let tgtAngle  = 0;
+let prevTgt   = null; // null = no previous (first pick)
+
+let hitFlash   = 0;   // countdown frames for success flash
+let deathFlash = 0;   // countdown frames for death shake + red flash
+let justHit    = false; // true for one frame after a successful click (suppresses auto-miss)
+
+let raf    = null;
+let lastMs = null;
+
+/* ── Audio ─────────────────────────────────────────── */
+let audioCtx = null;
+
+function getAC() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// Short punchy "pop" – frequency sweep from high to low
+function playPop() {
+  try {
+    const ac = getAC();
+    const t  = ac.currentTime;
+
+    const osc = ac.createOscillator();
+    const env = ac.createGain();
+    osc.connect(env);
+    env.connect(ac.destination);
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(820, t);
+    osc.frequency.exponentialRampToValueAtTime(190, t + 0.08);
+
+    env.gain.setValueAtTime(0.45, t);
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+
+    osc.start(t);
+    osc.stop(t + 0.12);
+
+    // Add a small click transient (white noise burst)
+    const bufLen = Math.ceil(ac.sampleRate * 0.012);
+    const buf    = ac.createBuffer(1, bufLen, ac.sampleRate);
+    const data   = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
+    }
+    const ns  = ac.createBufferSource();
+    const ng  = ac.createGain();
+    ns.buffer = buf;
+    ns.connect(ng);
+    ng.connect(ac.destination);
+    ng.gain.setValueAtTime(0.18, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + 0.012);
+    ns.start(t);
+  } catch (e) { /* audio not available */ }
+}
+
+// Descending buzzer "baaa" – game-over sound
+function playBaaa() {
+  try {
+    const ac = getAC();
+    const t  = ac.currentTime;
+
+    // Main sawtooth tone sweeping down (the "baaa" vowel)
+    const osc1 = ac.createOscillator();
+    const env1 = ac.createGain();
+    osc1.connect(env1);
+    env1.connect(ac.destination);
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(220, t);
+    osc1.frequency.setValueAtTime(220, t + 0.08);
+    osc1.frequency.exponentialRampToValueAtTime(55, t + 0.72);
+    env1.gain.setValueAtTime(0.0, t);
+    env1.gain.linearRampToValueAtTime(0.48, t + 0.04);
+    env1.gain.setValueAtTime(0.48, t + 0.12);
+    env1.gain.exponentialRampToValueAtTime(0.001, t + 0.82);
+    osc1.start(t);
+    osc1.stop(t + 0.85);
+
+    // Sub-octave square for body
+    const osc2 = ac.createOscillator();
+    const env2 = ac.createGain();
+    osc2.connect(env2);
+    env2.connect(ac.destination);
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(110, t);
+    osc2.frequency.exponentialRampToValueAtTime(28, t + 0.72);
+    env2.gain.setValueAtTime(0.0, t);
+    env2.gain.linearRampToValueAtTime(0.22, t + 0.04);
+    env2.gain.exponentialRampToValueAtTime(0.001, t + 0.72);
+    osc2.start(t);
+    osc2.stop(t + 0.75);
+  } catch (e) { /* audio not available */ }
+}
+
+/* ── Angle helpers ─────────────────────────────────── */
+// Convert our degree system (0=top, CW) to canvas radians (0=right, CW)
+const toCanvasRad = deg => (deg - 90) * Math.PI / 180;
+
+// Shortest angular distance between two degree values
+function angDist(a, b) {
+  let d = Math.abs(((a - b) % 360 + 360) % 360);
+  return d > 180 ? 360 - d : d;
+}
+
+// Returns true if 'angle' falls strictly inside the arc swept from 'from' → 'to'
+// travelling in direction 'dir' (+1 CW, -1 CCW). Excludes the start point.
+function inSweptArc(from, to, dir, angle) {
+  if (dir > 0) {
+    const sweep = ((to    - from  + 360) % 360);
+    const dist  = ((angle - from  + 360) % 360);
+    return sweep > 0 && dist > 0 && dist <= sweep;
+  } else {
+    const sweep = ((from  - to    + 360) % 360);
+    const dist  = ((from  - angle + 360) % 360);
+    return sweep > 0 && dist > 0 && dist <= sweep;
+  }
+}
+
+/* ── Target tolerance (degrees) ────────────────────── */
+function getTol() {
+  const rR = SIZE * 0.37;
+  const tR = SIZE * TARGET_FRAC[diff];
+  return 2 * Math.asin(Math.min(tR / (2 * rR), 1)) * (180 / Math.PI);
+}
+
+/* ── Target placement ──────────────────────────────── */
+function pickTarget() {
+  const pool = [];
+  for (let i = 0; i < 36; i++) {
+    const a = i * 10; // 0°, 10°, 20° … 350°
+    if (prevTgt === null || angDist(a, prevTgt) >= 30) pool.push(a);
+  }
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/* ── Trigger game-over ─────────────────────────────── */
+function triggerMiss() {
+  if (gs === 'gameover') return; // guard against double-trigger
+  gs         = 'gameover';
+  deathFlash = 45;
+  document.getElementById('final-score').textContent = score;
+  playBaaa();
+  setTimeout(() => {
+    document.getElementById('gameover-screen').classList.remove('hidden');
+  }, 820);
+}
+
+/* ── Game flow ─────────────────────────────────────── */
+function startGame(d) {
+  diff       = d;
+  score      = 0;
+  armAngle   = 0;
+  armDir     = 1;
+  armDPS     = BASE_DPS;
+  prevTgt    = null;
+  tgtAngle   = pickTarget();
+  hitFlash   = 0;
+  deathFlash = 0;
+  justHit    = false;
+  lastMs     = null;
+  gs         = 'ready'; // arm is stationary — wait for first tap
+
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('gameover-screen').classList.add('hidden');
+
+  if (raf) cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(loop);
+}
+
+function showStart() {
+  gs = 'start';
+  document.getElementById('gameover-screen').classList.add('hidden');
+  document.getElementById('start-screen').classList.remove('hidden');
+  if (raf) cancelAnimationFrame(raf);
+  drawFrame();
+}
+
+/* ── Player action ─────────────────────────────────── */
+function doAction() {
+  if (gs === 'ready') {
+    // First tap: start the arm moving — this click is NOT a hit/miss attempt
+    gs      = 'playing';
+    justHit = true;   // skip auto-miss check on the very first frame
+    lastMs  = null;   // reset dt so first movement frame starts from zero
+    return;
+  }
+
+  if (gs !== 'playing') return;
+
+  if (angDist(armAngle, tgtAngle) <= getTol()) {
+    // ✓ HIT
+    score++;
+    armDir   *= -1;
+    armDPS    = BASE_DPS + score * INC_DPS;
+    prevTgt   = tgtAngle;
+    tgtAngle  = pickTarget();
+    hitFlash  = 20;
+    justHit   = true;
+    playPop();
+  } else {
+    // ✗ MISS (clicked at wrong position)
+    triggerMiss();
+  }
+}
+
+/* ── Input wiring ──────────────────────────────────── */
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); doAction(); }
+});
+canvas.addEventListener('pointerdown', e => { e.preventDefault(); doAction(); }, { passive: false });
+document.getElementById('tap-btn')
+  .addEventListener('pointerdown', e => { e.preventDefault(); doAction(); }, { passive: false });
+
+/* ── Drawing ───────────────────────────────────────── */
+function drawFrame() {
+  const S  = SIZE;
+  const cx = S / 2, cy = S / 2;
+
+  const rR = S * 0.37;    // ring radius
+  const rW = S * 0.055;   // ring stroke width
+  const aW = S * 0.013;   // arm stroke width
+  const tR = S * TARGET_FRAC[diff];
+  const discR = S * 0.205; // white center disc radius (larger than score numeral)
+
+  const dead     = gs === 'gameover';
+  const ready    = gs === 'ready';
+  const fadeHit  = hitFlash   / 20;
+  const fadeDead = deathFlash / 45;
+
+  // Shake offset on death
+  let ox = 0, oy = 0;
+  if (deathFlash > 0) {
+    const mag = fadeDead * 11;
+    ox = (Math.random() * 2 - 1) * mag;
+    oy = (Math.random() * 2 - 1) * mag;
+  }
+
+  ctx.clearRect(0, 0, S, S);
+
+  // ── Background ────────────────────────────────────
+  {
+    const g = ctx.createRadialGradient(cx, cy, rR * 0.1, cx, cy, rR * 1.65);
+    g.addColorStop(0, '#1d0640');
+    g.addColorStop(1, '#0a0618');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+  }
+
+  ctx.save();
+  ctx.translate(cx + ox, cy + oy);
+
+  // ── Ring outer glow (halo) ────────────────────────
+  ctx.beginPath();
+  ctx.arc(0, 0, rR, 0, Math.PI * 2);
+  ctx.lineWidth = rW + 28;
+  if (dead && deathFlash > 0) {
+    ctx.strokeStyle = `rgba(255,0,0,${0.30 * fadeDead})`;
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur  = 40;
+  } else if (hitFlash > 0) {
+    ctx.strokeStyle = `rgba(255,255,160,${0.28 * fadeHit})`;
+    ctx.shadowColor = '#ffffa0';
+    ctx.shadowBlur  = 30;
+  } else {
+    ctx.strokeStyle = 'rgba(210,0,190,0.13)';
+    ctx.shadowColor = '#dd00cc';
+    ctx.shadowBlur  = 22;
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // ── Ring ─────────────────────────────────────────
+  ctx.beginPath();
+  ctx.arc(0, 0, rR, 0, Math.PI * 2);
+  ctx.lineWidth = rW;
+  if (dead && deathFlash > 0) {
+    const l = Math.round(50 + 25 * fadeDead);
+    ctx.strokeStyle = `hsl(0,100%,${l}%)`;
+    ctx.shadowColor = '#ff2222';
+    ctx.shadowBlur  = 16;
+  } else if (hitFlash > 0) {
+    const h = Math.round(60 * fadeHit + 295 * (1 - fadeHit));
+    ctx.strokeStyle = `hsl(${h},100%,65%)`;
+    ctx.shadowColor = ctx.strokeStyle;
+    ctx.shadowBlur  = 14;
+  } else {
+    ctx.strokeStyle = '#e020d0';
+    ctx.shadowColor = '#e020d0';
+    ctx.shadowBlur  = 9;
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // ── Target circle (yellow dot) ────────────────────
+  const tRad = toCanvasRad(tgtAngle);
+  const tx   = rR * Math.cos(tRad);
+  const ty_  = rR * Math.sin(tRad);
+
+  // In 'ready' state, pulse the target glow to draw attention
+  const pulse = ready ? 0.55 + 0.45 * Math.sin(Date.now() / 220) : 1;
+
+  ctx.beginPath();
+  ctx.arc(tx, ty_, tR, 0, Math.PI * 2);
+  const tCol = hitFlash > 0 ? '#ffffff' : '#ffe030';
+  ctx.fillStyle   = tCol;
+  ctx.shadowColor = tCol;
+  ctx.shadowBlur  = hitFlash > 0 ? 24 : 10 + 22 * pulse;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // ── Sweeping arm (red bar) ────────────────────────
+  // Drawn BEFORE the center disc so its base is hidden beneath it
+  const aRad = toCanvasRad(armAngle);
+  const ax   = rR * Math.cos(aRad);
+  const ay   = rR * Math.sin(aRad);
+  const armCol = dead ? '#ff5555' : (ready ? '#ff6688' : '#ff1a4a');
+
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(ax, ay);
+  ctx.lineWidth   = aW;
+  ctx.strokeStyle = armCol;
+  ctx.lineCap     = 'round';
+  ctx.shadowColor = dead ? '#ff2222' : '#ff0033';
+  ctx.shadowBlur  = ready ? 6 : 12;
+  ctx.stroke();
+
+  // Arm tip dot
+  ctx.beginPath();
+  ctx.arc(ax, ay, aW * 1.7, 0, Math.PI * 2);
+  ctx.fillStyle   = armCol;
+  ctx.shadowColor = armCol;
+  ctx.shadowBlur  = ready ? 6 : 12;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // ── Center disc (white, covers arm base) ──────────
+  // Gradient for a slightly 3-D look
+  const discGrad = ctx.createRadialGradient(-discR * 0.2, -discR * 0.25, discR * 0.05,
+                                             0, 0, discR);
+  if (dead && deathFlash > 0) {
+    discGrad.addColorStop(0, `rgba(255,200,200,${0.92 + 0.08 * fadeDead})`);
+    discGrad.addColorStop(1, `rgba(220,160,160,${0.88 + 0.12 * fadeDead})`);
+  } else if (hitFlash > 0) {
+    discGrad.addColorStop(0, `rgba(255,255,240,${0.92 + 0.08 * fadeHit})`);
+    discGrad.addColorStop(1, `rgba(240,240,200,${0.88 + 0.12 * fadeHit})`);
+  } else {
+    discGrad.addColorStop(0, 'rgba(255,255,255,0.97)');
+    discGrad.addColorStop(1, 'rgba(232,232,240,0.93)');
+  }
+
+  ctx.beginPath();
+  ctx.arc(0, 0, discR, 0, Math.PI * 2);
+  ctx.fillStyle   = discGrad;
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur  = 12;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // ── Score numeral (black text on disc) ────────────
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Scale font slightly for 3+ digit scores
+  const digits = score.toString().length;
+  const scoreFontSize = digits <= 2 ? S * 0.155 : digits <= 3 ? S * 0.115 : S * 0.088;
+
+  ctx.fillStyle = dead
+    ? `rgba(160,20,20,${0.85 + 0.15 * fadeDead})`
+    : hitFlash > 0
+      ? `rgba(100,80,0,${0.9})` // dark golden tint on hit
+      : '#111111';
+  ctx.font = `900 ${scoreFontSize}px Arial`;
+  // Nudge the score up slightly to leave room for the hint below it
+  const scoreY = ready ? -S * 0.045 : -S * 0.005;
+  ctx.fillText(score.toString(), 0, scoreY);
+
+  // ── Text inside disc ──────────────────────────────
+  if (ready) {
+    // "TAP TO START" hint inside the disc
+    ctx.fillStyle = 'rgba(80,20,120,0.75)';
+    ctx.font      = `700 ${S * 0.038}px Arial`;
+    ctx.fillText('TAP TO START', 0, S * 0.075);
+  }
+
+  // ── "CLICK TO START" instruction outside ring (ready only) ──
+  if (ready) {
+    ctx.fillStyle = 'rgba(255,255,255,0.60)';
+    ctx.font      = `${S * 0.040}px Arial`;
+    ctx.fillText('HIT CLICK OR SPACE WHEN THE', 0,  rR + rW * 0.5 + S * 0.055);
+    ctx.font      = `${S * 0.040}px Arial`;
+    ctx.fillText('ARM REACHES THE YELLOW DOT', 0,  rR + rW * 0.5 + S * 0.105);
+  }
+
+  ctx.restore();
+}
+
+/* ── Animation loop ────────────────────────────────── */
+function loop(ms) {
+  if (!lastMs) lastMs = ms;
+  const dt = Math.min((ms - lastMs) / 1000, 0.05); // cap at 50 ms
+  lastMs = ms;
+
+  if (gs === 'playing') {
+    const prevAngle = armAngle;
+    armAngle = ((armAngle + armDPS * armDir * dt) % 360 + 360) % 360;
+
+    // ── Auto-miss detection ──────────────────────────
+    // Fires when the arm sweeps past the target zone without a click.
+    if (!justHit) {
+      const tol = getTol();
+      const prevInZone = angDist(prevAngle, tgtAngle) <= tol;
+      const nowInZone  = angDist(armAngle,  tgtAngle) <= tol;
+
+      if (prevInZone && !nowInZone) {
+        // Arm was in zone, now exited — player missed
+        triggerMiss();
+      } else if (!prevInZone && !nowInZone && inSweptArc(prevAngle, armAngle, armDir, tgtAngle)) {
+        // Arm skipped over the target angle in one frame (high speed) — player missed
+        triggerMiss();
+      }
+    }
+    justHit = false; // reset each frame
+  }
+
+  if (hitFlash   > 0) hitFlash--;
+  if (deathFlash > 0) deathFlash--;
+
+  drawFrame();
+
+  // Keep running while active or during death animation
+  if (gs === 'ready' || gs === 'playing' || deathFlash > 0) {
+    raf = requestAnimationFrame(loop);
+  }
+}
+
+/* ── Boot ──────────────────────────────────────────── */
+drawFrame(); // render a static frame behind the start screen overlay
+</script>
+</body>
+</html>
