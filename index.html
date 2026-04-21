@@ -608,10 +608,9 @@ function drawFrame() {
   // ── "CLICK TO START" instruction outside ring (ready only) ──
   if (ready) {
     ctx.fillStyle = 'rgba(255,255,255,0.60)';
-    ctx.font      = `${S * 0.040}px Arial`;
-    ctx.fillText('HIT CLICK OR SPACE WHEN THE', 0,  rR + rW * 0.5 + S * 0.055);
-    ctx.font      = `${S * 0.040}px Arial`;
-    ctx.fillText('ARM REACHES THE YELLOW DOT', 0,  rR + rW * 0.5 + S * 0.105);
+    ctx.font      = `${S * 0.036}px Arial`;
+    ctx.fillText('HIT CLICK OR SPACE WHEN THE', 0, rR + rW * 0.5 + S * 0.038);
+    ctx.fillText('ARM REACHES THE YELLOW DOT', 0,  rR + rW * 0.5 + S * 0.078);
   }
 
   ctx.restore();
